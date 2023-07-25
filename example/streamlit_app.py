@@ -86,10 +86,23 @@ def dict_demo():
         }
         show_items(conn.table.items())
 
+    "### Approximate number of items in the table"
+    with st.echo():
+        st.write(len(conn.table))
+
+    "### Exact number of items in the table"
+    st.warning("Warning: costly operation!")
+    with st.echo():
+        st.write(len(list(conn.table.keys())))
+
     "### Delete an item from the table"
     with st.echo():
         del conn.table["article_st"]
         show_items(conn.table.items())
+
+    "### Number of items in the table"
+    with st.echo():
+        st.write(len(conn.table))
 
 """# Streamlit DynamoDB Connection
 
