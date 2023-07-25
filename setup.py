@@ -34,4 +34,5 @@ setuptools.setup(
     # Requirements
     install_requires=INSTALL_REQUIRES,
     packages=["dynamodb_connection"],
+    package_data={"dynamodb_connection": ["py.typed"]},
 )
