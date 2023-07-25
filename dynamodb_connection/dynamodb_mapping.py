@@ -109,6 +109,12 @@ def create_tuple_keys(key: DynamoDBKeySimplified) -> DynamoDBKeyAny:
     else:
         return cast(DynamoDBKeySimple, (key,))
 
+def _log_keys_from_params(key_params: Dict[str, DynamoDBKeyPrimitive]) -> str:
+        log_keys: Union[List[str], str] = list(key_params.keys())
+        if len(log_keys) == 1:
+            log_keys = log_keys[0]
+        return str(log_keys)
+
 
 class DynamoDBValuesView(ValuesView):
     """Efficient implementation of python dict ValuesView on DynamoDBMapping types.
@@ -280,10 +286,7 @@ class DynamoDBMapping(MutableMapping):
         logger.debug("Performing a get_item operation on %s table", self._table.name)
         response = self._table.get_item(Key=key_params, **kwargs)
         if not "Item" in response:
-            log_keys: Union[List[str], str] = list(key_params.keys())
-            if len(log_keys) == 1:
-                log_keys = log_keys[0]
-            raise KeyError(log_keys)
+            raise KeyError(_log_keys_from_params(key_params))
         return response["Item"]
 
     def set_item(self,
@@ -310,17 +313,22 @@ class DynamoDBMapping(MutableMapping):
         """An alias for the `set_item` method."""
         self.set_item(keys, item, **kwargs)
 
-    def del_item(self, keys: DynamoDBKeySimplified, **kwargs):
+    def del_item(self, keys: DynamoDBKeySimplified, check_existing=True, **kwargs):
         """Deletes a single item from the table.
 
         Args:
             keys (DynamoDBKeySimplified): The key value. This can either be a simple Python type,
                 if only the partition key is specified in the table's key schema, or a tuple of the
                 partition key and the range key values, if both are specified in the key schema.
+            check_existing (bool): Raise ValueError if the specified key does not exists in the
+                table. Defaults to True to be consistent with python dict implementation, however
+                this causes an additional get_item operation to be executed.
             **kwargs: keyword arguments to be passed to the underlying DynamoDB delete_item
                 operation.
         """
         key_params = self._create_key_param(keys)
+        if check_existing and not keys in self.keys():
+            raise KeyError(_log_keys_from_params(key_params))
         logger.debug("Performing a delete_item operation on %s table", self._table.name)
         self._table.delete_item(Key=key_params, **kwargs)
 

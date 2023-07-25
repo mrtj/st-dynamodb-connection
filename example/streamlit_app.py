@@ -71,38 +71,38 @@ def dict_demo():
         def show_items(items):
             for key, value in items:
                 st.write(key, value)
-        show_items(conn.table.items())
+        show_items(conn.mapping.items())
 
     "### Get a single item by key"
     with st.echo():
-        article1 = conn.table["article1"]
+        article1 = conn.mapping["article1"]
         article1
 
     "### Put an item in the table"
     with st.echo():
-        conn.table["article_st"] = {
+        conn.mapping["article_st"] = {
             "text": "This item was put from streamlit!",
             "metadata": {"source": "mrtj"},
         }
-        show_items(conn.table.items())
+        show_items(conn.mapping.items())
 
     "### Approximate number of items in the table"
     with st.echo():
-        st.write(len(conn.table))
+        st.write(len(conn.mapping))
 
     "### Exact number of items in the table"
     st.warning("Warning: costly operation!")
     with st.echo():
-        st.write(len(list(conn.table.keys())))
+        st.write(len(list(conn.mapping.keys())))
 
     "### Delete an item from the table"
     with st.echo():
-        del conn.table["article_st"]
-        show_items(conn.table.items())
+        del conn.mapping["article_st"]
+        show_items(conn.mapping.items())
 
     "### Number of items in the table"
     with st.echo():
-        st.write(len(conn.table))
+        st.write(len(conn.mapping))
 
 """# Streamlit DynamoDB Connection
 
