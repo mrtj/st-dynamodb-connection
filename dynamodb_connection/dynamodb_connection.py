@@ -1,65 +1,136 @@
-from typing import Any, Optional, Dict, Iterator, Union, List
+from typing import Any, KeysView, Optional, Dict, Iterator, Union, List, Tuple, ValuesView
+from collections.abc import Mapping, MutableMapping, Sequence, Iterable
 
 from streamlit.connections import ExperimentalBaseConnection
 
 import boto3
 import pandas as pd
 
-try:
-    import mypy_boto3_dynamodb
-    DynamoDBTable = mypy_boto3_dynamodb.service_resource.Table
-except ImportError:
-    DynamoDBTable = Any # type: ignore
+# try:
+import mypy_boto3_dynamodb
+DynamoDBTable = mypy_boto3_dynamodb.service_resource.Table
+# except ImportError:
+#     DynamoDBTable = Any # type: ignore
 
-class DynamoDBConnection(ExperimentalBaseConnection[DynamoDBTable]):
+def get_key_names(table: DynamoDBTable) -> Tuple:
+    """Gets the key names of the DynamoDB table.
 
-    def __init__(self,
-        connection_name: str,
-        boto3_session: Optional[boto3.Session]=None, **kwargs
+    Returns:
+        List[str]: A list with the key names. The list has either one (if only the hash key
+            is defined on the table) or two (if both the hash and range key is defined)
+            elements.
+    """
+    keys: List[str] = []
+    for schema_part in table.key_schema:
+        if schema_part["KeyType"] == "HASH":
+            keys.insert(0, schema_part["AttributeName"])
+        elif schema_part["KeyType"] == "RANGE":
+            keys.append(schema_part["AttributeName"])
+    return tuple(keys)
+
+def simplify_tuple_keys(tpl: tuple) -> Union[Any, Tuple]:
+    return tpl[0] if len(tpl) == 1 else tpl
+
+def create_tuple_keys(key: Union[str, Iterable]) -> Tuple:
+    if isinstance(key, Iterable) and not isinstance(key, (str, bytes, bytearray)):
+        return tuple(key)
+    else:
+        return (key,)
+
+def boto3_session_from_config(config: Dict[str, Any]) -> Optional[boto3.Session]:
+    if "aws_access_key_id" in config and "aws_secret_access_key" in config:
+        return boto3.Session(
+            aws_access_key_id=config["aws_access_key_id"],
+            aws_secret_access_key=config["aws_secret_access_key"],
+            region_name=config.get("aws_region"),
+            profile_name=config.get("aws_profile")
+        )
+    else:
+        return None
+
+class DynamoDBMapping(Mapping):
+
+    def __init__(
+        self, table_name: str, boto3_session: Optional[boto3.Session]=None, **kwargs
     ) -> None:
-        self.boto3_session = boto3_session
-        super().__init__(connection_name, **kwargs)
+        session = (
+            boto3_session or
+            kwargs.get("boto3_session") or
+            boto3_session_from_config(kwargs) or
+            boto3.Session()
+        )
+        dynamodb = session.resource("dynamodb")
+        self._table = dynamodb.Table(table_name)
+        self._key_names = get_key_names(self._table)
 
-    def _session_from_config(self, config: Dict[str, Any]) -> Optional[boto3.Session]:
-        if "aws_access_key_id" in config and "aws_secret_access_key" in config:
-            return boto3.Session(
-                aws_access_key_id=config["aws_access_key_id"],
-                aws_secret_access_key=config["aws_secret_access_key"],
-                region_name=config.get("aws_region"),
-                profile_name=config.get("aws_profile")
-            )
-        else:
-            return None
+    def scan(self, **kwargs) -> Iterator:
+        response = self._table.scan(**kwargs)
+        for item in response["Items"]:
+            yield item
+        while "LastEvaluatedKey" in response:
+            response = self._table.scan(ExclusiveStartKey=response["LastEvaluatedKey"])
+            for item in response["Items"]:
+                yield item
 
-    def _connect(self, **kwargs) -> DynamoDBTable:
+    def get_item(self, keys, **kwargs) -> Dict:
+        keys = create_tuple_keys(keys)
+        if len(keys) != len(self._key_names):
+            raise ValueError(f"You must provide a value for each of {self._key_names} keys.")
+        key_param = {key: value for key, value in zip(self._key_names, keys)}
+        response = self._table.get_item(Key=key_param, **kwargs)
+        return response["Item"]
+
+    def __iter__(self) -> Iterator:
+        for item in self.scan(ProjectionExpression=", ".join(self._key_names)):
+            keys = tuple(item[key] for key in self._key_names)
+            yield simplify_tuple_keys(keys)
+
+    def __len__(self) -> int:
+        # WARNING: this is an approximate value, updated once in every approximately 6 hours.
+        # If you need the exact current count of items, use len(list(dynamoDBMapping))
+        return self._table.item_count
+
+    def __getitem__(self, __key: Any) -> Any:
+        return self.get_item(__key)
+
+
+class DynamoDBConnection(ExperimentalBaseConnection[DynamoDBMapping]):
+    """Connects a streamlit app to an Amazon DynamoDB table.
+
+
+    """
+
+    boto3_session: Optional[boto3.Session]
+    _key_names: Tuple
+
+    @property
+    def table(self) -> DynamoDBMapping:
+        """Access the underlying DynamoDB table resource for full API operations."""
+        return self._instance
+
+    def _connect(self, **kwargs) -> DynamoDBMapping:
         secrets = self._secrets.to_dict()
         table_name = kwargs.get("table_name") or secrets.get("table_name")
         if table_name is None:
             raise ValueError(
                 "You must configure the DynamoDB table name either as a DynamoDBConnection secret "
-                "called 'table_name' or pass it as a keyword parameter 'table_ name' when creating "
+                "called 'table_name' or pass it as keyword parameter 'table_ name' when creating "
                 "the connection."
             )
 
         session = (
-            self.boto3_session or
             kwargs.get("boto3_session") or
-            self._session_from_config(kwargs) or
-            self._session_from_config(secrets) or
+            boto3_session_from_config(kwargs) or
+            boto3_session_from_config(secrets) or
             boto3.Session()
         )
-        dynamodb = session.resource("dynamodb")
-        table = dynamodb.Table(table_name)
+        table = DynamoDBMapping(table_name=table_name, boto3_session=session)
         return table
 
-    def _get_keys(self) -> List[str]:
-        keys: List[str] = []
-        for schema_part in self._instance.key_schema:
-            if schema_part["KeyType"] == "HASH":
-                keys.insert(0, schema_part["AttributeName"])
-            elif schema_part["KeyType"] == "RANGE":
-                keys.append(schema_part["AttributeName"])
-        return keys
+    def _df_from_iterator(self, iterator: Iterator[Dict[str, Any]]) -> pd.DataFrame:
+        df = pd.DataFrame(iterator)
+        df.set_index(list(self.table._key_names), inplace=True)
+        return df
 
     def scan(self, return_raw=False, **kwargs) -> Union[Iterator[Dict[str, Any]], pd.DataFrame]:
         """Returns all items in the DynamoDB table.
@@ -78,18 +149,13 @@ class DynamoDBConnection(ExperimentalBaseConnection[DynamoDBTable]):
         Return (Union[Iterator[Dict[str, Any]], pd.DataFrame]): Either a pandas dataframe, or an
             iterator of python dictionaries.
         """
-        def _inner_scan() -> Iterator[Dict[str, Any]]:
-            response = self._instance.scan(**kwargs)
-            for item in response["Items"]:
-                yield item
-            while "LastEvaluatedKey" in response:
-                response = self._instance.scan(ExclusiveStartKey=response["LastEvaluatedKey"])
-                for item in response["Items"]:
-                    yield item
-        if return_raw:
-            return _inner_scan()
-        else:
-            keys = self._get_keys()
-            df = pd.DataFrame(_inner_scan())
-            df.set_index(keys, inplace=True)
-            return df
+        iterator = self.table.scan(**kwargs)
+        return iterator if return_raw else self._df_from_iterator(iterator)
+
+    def get_item(self,
+        keys: Union[str, List[str]],
+        return_raw=False,
+        **kwargs
+    ) -> Union[Dict[str, Any], pd.Series]:
+        item = self.table.get_item(keys, **kwargs)
+        return item if return_raw else pd.Series(item, name="value")
