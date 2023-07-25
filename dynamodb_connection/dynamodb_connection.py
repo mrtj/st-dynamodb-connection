@@ -1,19 +1,26 @@
-from typing import Any,  Dict, Iterator, Union, List
+from typing import Any,  Dict, Iterator, Union, Literal, Optional
 
 from streamlit.connections import ExperimentalBaseConnection
 
 import boto3
 import pandas as pd
 
-from .dynamodb_mapping import DynamoDBMapping
+from .dynamodb_mapping import DynamoDBMapping, DynamoDBSimplifiedKey, DynamoDBItemType
 from .utils import boto3_session_from_config
 
+
+DynamoDBConnectionApiType = Literal["raw", "pandas"]
 
 class DynamoDBConnection(ExperimentalBaseConnection[DynamoDBMapping]):
     """Connects a streamlit app to an Amazon DynamoDB table.
 
 
     """
+    def __init__(self,
+        connection_name: str, api_type: DynamoDBConnectionApiType="pandas", **kwargs
+    ) -> None:
+        self.api_type = api_type
+        super().__init__(connection_name, **kwargs)
 
     @property
     def table(self) -> DynamoDBMapping:
@@ -44,7 +51,9 @@ class DynamoDBConnection(ExperimentalBaseConnection[DynamoDBMapping]):
         df.set_index(list(self.table._key_names), inplace=True)
         return df
 
-    def scan(self, return_raw=False, **kwargs) -> Union[Iterator[Dict[str, Any]], pd.DataFrame]:
+    def items(self,
+        api_type: Optional[DynamoDBConnectionApiType]=None, **kwargs
+    ) -> Union[Iterator[DynamoDBItemType], pd.DataFrame]:
         """Returns all items in the DynamoDB table.
 
         The items can be returned either as a pandas dataframe (the default behavior) or as an
@@ -61,13 +70,24 @@ class DynamoDBConnection(ExperimentalBaseConnection[DynamoDBMapping]):
         Return (Union[Iterator[Dict[str, Any]], pd.DataFrame]): Either a pandas dataframe, or an
             iterator of python dictionaries.
         """
+        api_type = api_type or self.api_type
         iterator = self.table.scan(**kwargs)
-        return iterator if return_raw else self._df_from_iterator(iterator)
+        return iterator if api_type == "raw" else self._df_from_iterator(iterator)
 
     def get_item(self,
-        keys: Union[str, List[str]],
-        return_raw=False,
+        keys: DynamoDBSimplifiedKey,
+        api_type: Optional[DynamoDBConnectionApiType]=None,
         **kwargs
-    ) -> Union[Dict[str, Any], pd.Series]:
+    ) -> Union[DynamoDBItemType, pd.Series]:
+        api_type = api_type or self.api_type
         item = self.table.get_item(keys, **kwargs)
-        return item if return_raw else pd.Series(item, name="value")
+        return item if api_type == "raw" else pd.Series(item, name="value")
+
+    def set_item(self, keys: DynamoDBSimplifiedKey, item: DynamoDBItemType, **kwargs) -> None:
+        self.table.set_item(keys, item, **kwargs)
+
+    def put_item(self, keys: DynamoDBSimplifiedKey, item: DynamoDBItemType, **kwargs) -> None:
+        self.table.put_item(keys, item, **kwargs)
+
+    def del_item(self, keys: DynamoDBSimplifiedKey, **kwargs) -> None:
+        self.table.del_item(keys, **kwargs)

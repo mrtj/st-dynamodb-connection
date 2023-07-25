@@ -1,3 +1,3 @@
-from .dynamodb_connection import DynamoDBConnection
+from .dynamodb_connection import DynamoDBConnection, DynamoDBConnectionApiType
 
-__all__ = ["DynamoDBConnection"]
+__all__ = ["DynamoDBConnection", "DynamoDBConnectionApiType"]
