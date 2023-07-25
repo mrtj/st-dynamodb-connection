@@ -1,5 +1,6 @@
-from typing import Any, KeysView, Optional, Dict, Iterator, Union, List, Tuple, ValuesView
 from collections.abc import Mapping, MutableMapping, Sequence, Iterable
+from typing import Any, Mapping, Optional, Dict, Iterator, Union, List, Tuple, ValuesView, ItemsView
+
 
 from streamlit.connections import ExperimentalBaseConnection
 
@@ -48,6 +49,38 @@ def boto3_session_from_config(config: Dict[str, Any]) -> Optional[boto3.Session]
     else:
         return None
 
+
+class DynamoDBValuesView(ValuesView):
+
+    __slots__ = '_mapping'
+
+    def __init__(self, mapping: "DynamoDBMapping") -> None:
+        self._mapping = mapping
+
+    def __contains__(self, value: object) -> bool:
+        for v in self._mapping.scan():
+            if v is value or v == value:
+                return True
+        return False
+
+    def __iter__(self) -> Iterator:
+        return self._mapping.scan()
+
+
+class DynamoDBItemsView(ItemsView):
+
+    __slots__ = '_mapping'
+
+    def __init__(self, mapping: "DynamoDBMapping") -> None:
+        self._mapping = mapping
+
+    def __iter__(self):
+        for item in self._mapping.scan():
+            key_values = self._mapping._key_values_from_item(item)
+            key_values = simplify_tuple_keys(key_values)
+            yield (key_values, item)
+
+
 class DynamoDBMapping(Mapping):
 
     def __init__(
@@ -80,10 +113,12 @@ class DynamoDBMapping(Mapping):
         response = self._table.get_item(Key=key_param, **kwargs)
         return response["Item"]
 
+    def _key_values_from_item(self, item: Dict) -> Tuple:
+        return tuple(item[key] for key in self._key_names)
+
     def __iter__(self) -> Iterator:
         for item in self.scan(ProjectionExpression=", ".join(self._key_names)):
-            keys = tuple(item[key] for key in self._key_names)
-            yield simplify_tuple_keys(keys)
+            yield simplify_tuple_keys(self._key_values_from_item(item))
 
     def __len__(self) -> int:
         # WARNING: this is an approximate value, updated once in every approximately 6 hours.
@@ -93,15 +128,18 @@ class DynamoDBMapping(Mapping):
     def __getitem__(self, __key: Any) -> Any:
         return self.get_item(__key)
 
+    def values(self) -> ValuesView:
+        return DynamoDBValuesView(self)
+
+    def items(self) -> ItemsView:
+        return DynamoDBItemsView(self)
+
 
 class DynamoDBConnection(ExperimentalBaseConnection[DynamoDBMapping]):
     """Connects a streamlit app to an Amazon DynamoDB table.
 
 
     """
-
-    boto3_session: Optional[boto3.Session]
-    _key_names: Tuple
 
     @property
     def table(self) -> DynamoDBMapping:
