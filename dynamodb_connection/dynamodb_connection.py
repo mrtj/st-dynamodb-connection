@@ -1,13 +1,12 @@
-from typing import Any,  Dict, Iterator, Union, Literal, Optional
+from typing import Any,  Dict, Iterator, Iterable, Union, Literal, Optional, cast
 
 from streamlit.connections import ExperimentalBaseConnection
 
 import boto3
 import pandas as pd
 
-from .dynamodb_mapping import DynamoDBMapping, DynamoDBSimplifiedKey, DynamoDBItemType
+from .dynamodb_mapping import DynamoDBMapping, DynamoDBKeySimplified, DynamoDBItemType
 from .utils import boto3_session_from_config
-
 
 DynamoDBConnectionApiType = Literal["raw", "pandas"]
 
@@ -46,8 +45,8 @@ class DynamoDBConnection(ExperimentalBaseConnection[DynamoDBMapping]):
         table = DynamoDBMapping(table_name=table_name, boto3_session=session)
         return table
 
-    def _df_from_iterator(self, iterator: Iterator[Dict[str, Any]]) -> pd.DataFrame:
-        df = pd.DataFrame(iterator)
+    def _df_from_iterable(self, iterable: Iterable[DynamoDBItemType]) -> pd.DataFrame:
+        df = pd.DataFrame(cast(Iterable[Dict[Any, Any]], iterable))
         df.set_index(list(self.table._key_names), inplace=True)
         return df
 
@@ -72,10 +71,10 @@ class DynamoDBConnection(ExperimentalBaseConnection[DynamoDBMapping]):
         """
         api_type = api_type or self.api_type
         iterator = self.table.scan(**kwargs)
-        return iterator if api_type == "raw" else self._df_from_iterator(iterator)
+        return iterator if api_type == "raw" else self._df_from_iterable(iterator)
 
     def get_item(self,
-        keys: DynamoDBSimplifiedKey,
+        keys: DynamoDBKeySimplified,
         api_type: Optional[DynamoDBConnectionApiType]=None,
         **kwargs
     ) -> Union[DynamoDBItemType, pd.Series]:
@@ -83,11 +82,11 @@ class DynamoDBConnection(ExperimentalBaseConnection[DynamoDBMapping]):
         item = self.table.get_item(keys, **kwargs)
         return item if api_type == "raw" else pd.Series(item, name="value")
 
-    def set_item(self, keys: DynamoDBSimplifiedKey, item: DynamoDBItemType, **kwargs) -> None:
+    def set_item(self, keys: DynamoDBKeySimplified, item: DynamoDBItemType, **kwargs) -> None:
         self.table.set_item(keys, item, **kwargs)
 
-    def put_item(self, keys: DynamoDBSimplifiedKey, item: DynamoDBItemType, **kwargs) -> None:
+    def put_item(self, keys: DynamoDBKeySimplified, item: DynamoDBItemType, **kwargs) -> None:
         self.table.put_item(keys, item, **kwargs)
 
-    def del_item(self, keys: DynamoDBSimplifiedKey, **kwargs) -> None:
+    def del_item(self, keys: DynamoDBKeySimplified, **kwargs) -> None:
         self.table.del_item(keys, **kwargs)
