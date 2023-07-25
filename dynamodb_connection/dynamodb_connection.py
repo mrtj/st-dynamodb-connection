@@ -5,7 +5,7 @@ from streamlit.connections import ExperimentalBaseConnection
 import boto3
 import pandas as pd
 
-from dynamodb_mapping import DynamoDBMapping, DynamoDBSimplifiedKey, DynamoDBItemType
+from .dynamodb_mapping import DynamoDBMapping, DynamoDBSimplifiedKey, DynamoDBItemType
 from .utils import boto3_session_from_config
 
 
