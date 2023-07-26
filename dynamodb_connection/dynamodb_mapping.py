@@ -170,6 +170,33 @@ class DynamoDBKeysView(KeysView):
             return True
 
 
+class DynamoDBItemAccessor(dict):
+    """This subclass of dictionary ensures the effective update of the DynamoDB table when a field
+    of the item returned by `get_item` is modified.
+
+    This is an internal helper class and most likely, users of `DynamoDBMapping` will not need to
+    use it.
+
+    Args:
+        parent (DynamoDBMapping): The parent mapping that created this accessor.
+        item_keys (DynamoDBKeySimplified): The keys of the item this accessor is modifying.
+        initial_data (Dict): The initial item data.
+    """
+
+    def __init__(self,
+        parent: "DynamoDBMapping",
+        item_keys: DynamoDBKeySimplified,
+        initial_data: DynamoDBItemType,
+    ) -> None:
+        self._parent = parent
+        self._item_keys = item_keys
+        super().__init__(initial_data)
+
+    def __setitem__(self, __key: Any, __value: Any) -> None:
+        self._parent.modify_item(self._item_keys, {__key: __value})
+        return super().__setitem__(__key, __value)
+
+
 class DynamoDBMapping(MutableMapping):
     """DynamoDBMapping is an alternative API for Amazon DynamoDB that implements the Python
     MutableMapping abstract base class, effectively allowing you to use a DynamoDB table as if it
@@ -287,11 +314,10 @@ class DynamoDBMapping(MutableMapping):
         response = self._table.get_item(Key=key_params, **kwargs)
         if not "Item" in response:
             raise KeyError(_log_keys_from_params(key_params))
-        return response["Item"]
+        data = response["Item"]
+        return DynamoDBItemAccessor(parent=self, item_keys=keys, initial_data=data)
 
-    def set_item(self,
-        keys: DynamoDBKeySimplified, item: DynamoDBItemType, **kwargs
-    ) -> None:
+    def set_item(self, keys: DynamoDBKeySimplified, item: DynamoDBItemType, **kwargs) -> None:
         """Creates or overwrites a single item in the table.
 
         Args:
@@ -307,13 +333,11 @@ class DynamoDBMapping(MutableMapping):
         logger.debug("Performing a put_item operation on %s table", self._table.name)
         self._table.put_item(Item=_item, **kwargs)
 
-    def put_item(self,
-        keys: DynamoDBKeySimplified, item: DynamoDBItemType, **kwargs
-    ) -> None:
+    def put_item(self, keys: DynamoDBKeySimplified, item: DynamoDBItemType, **kwargs) -> None:
         """An alias for the `set_item` method."""
         self.set_item(keys, item, **kwargs)
 
-    def del_item(self, keys: DynamoDBKeySimplified, check_existing=True, **kwargs):
+    def del_item(self, keys: DynamoDBKeySimplified, check_existing=True, **kwargs) -> None:
         """Deletes a single item from the table.
 
         Args:
@@ -331,6 +355,66 @@ class DynamoDBMapping(MutableMapping):
             raise KeyError(_log_keys_from_params(key_params))
         logger.debug("Performing a delete_item operation on %s table", self._table.name)
         self._table.delete_item(Key=key_params, **kwargs)
+
+    def modify_item(self,
+        keys: DynamoDBKeySimplified,
+        modifications: DynamoDBItemType,
+        **kwargs
+    ) -> None:
+        """Modifies the properties of an existing item.
+
+        Args:
+            keys (DynamoDBKeySimplified): The key value of the item. This can either be a simple
+                Python type, if only the partition key is specified in the table's key schema, or a
+                tuple of the partition key and the range key values, if both are specified in the
+                key schema.
+            modifications (DynamoDBItemType): A mapping containing the desired modifications to
+                the fields of the item. This mapping follows the same format as the entire item,
+                but it isn't required to contain all fields: fields that are omitted will be
+                unaffected. To delete a field, set the field value to None.
+            **kwargs: keyword arguments to be passed to the underlying DynamoDB update_item
+                operation.
+        """
+        key_params = self._create_key_param(keys)
+        set_expression_parts = []
+        remove_expression_parts = []
+        attribute_names = {}
+        attribute_values = {}
+        for idx, (attrib_key, attrib_value) in enumerate(modifications.items()):
+            attrib_key_ph = f"#key{idx}"
+            attrib_value_ph = f":value{idx}"
+            attribute_names[attrib_key_ph] = attrib_key
+            if attrib_value is None:
+                remove_expression_parts.append(attrib_key_ph)
+            else:
+                set_expression_parts.append(f"{attrib_key_ph} = {attrib_value_ph}")
+                attribute_values[attrib_value_ph] = attrib_value
+        update_expression_parts = []
+        if set_expression_parts:
+            update_expression_parts.append("set " + ", ".join(set_expression_parts))
+        if remove_expression_parts:
+            update_expression_parts.append("remove " + ", ".join(remove_expression_parts))
+        if not update_expression_parts:
+            logger.warning(
+                "No update expression was created by modify_item: modifications mapping is empty?"
+            )
+            return
+        update_expression = " ".join(update_expression_parts)
+        logger.debug(
+            "Performing an update_item operation on %s table with update expression %s",
+            self._table.name,
+            update_expression,
+        )
+        update_item_kwargs = {
+            **kwargs,
+            "Key": key_params,
+            "UpdateExpression": update_expression,
+        }
+        if attribute_values:
+            update_item_kwargs["ExpressionAttributeValues"] = attribute_values
+        if attribute_names:
+            update_item_kwargs["ExpressionAttributeNames"] = attribute_names
+        self._table.update_item(**update_item_kwargs)
 
     def _key_values_from_item(self, item: DynamoDBItemType) -> DynamoDBKeyAny:
         return cast(DynamoDBKeyAny, tuple(item[key] for key in self._key_names))

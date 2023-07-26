@@ -59,6 +59,18 @@ def api_demo(api_type: DynamoDBConnectionApiType, intro: str):
         })
         show_result(conn.items())
 
+    st.write("### Modify an existing item")
+    with st.echo():
+        conn.modify_item(
+            "article_st",
+            {
+                "text": "This item was put and modified from streamlit!",
+                "metadata": None,
+                "new_field": "This is a newly added field"
+            }
+        )
+        show_result(conn.items())
+
     st.write("### Delete an item from the table")
     with st.echo():
         conn.del_item("article_st")

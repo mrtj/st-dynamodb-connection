@@ -149,6 +149,26 @@ class DynamoDBConnection(ExperimentalBaseConnection[DynamoDBMapping]):
         """An alias of the `set_item` method."""
         self.set_item(keys, item, **kwargs)
 
+    def modify_item(self,
+        keys: DynamoDBKeySimplified, modifications: Union[DynamoDBItemType, pd.Series], **kwargs
+    ) -> None:
+        """Modifies an existing item in the table.
+
+        Args:
+            keys (DynamoDBKeySimplified): The key value. This can either be a simple Python type,
+                if only the partition key is specified in the table's key schema, or a tuple of the
+                partition key and the range key values, if both are specified in the key schema.
+            modifications (Union[DynamoDBItemType, pd.Series]): Either a mapping or a pandas Series
+                containing containing the desired modifications to the fields of the item. This
+                mapping follows the same format as the entire item, but it isn't required to contain
+                all fields: fields that are omitted will be unaffected. To delete a field, set the
+                field value to None.
+            **kwargs: keyword arguments to be passed to the underlying DynamoDB update_item
+                operation.
+        """
+        mods_ = dict(modifications) if isinstance(modifications, pd.Series) else modifications
+        self.mapping.modify_item(keys, cast(DynamoDBItemType, mods_), **kwargs)
+
     def del_item(self, keys: DynamoDBKeySimplified, **kwargs) -> None:
         """Deletes a single item from the table.
 
