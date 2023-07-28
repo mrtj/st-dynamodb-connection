@@ -110,10 +110,9 @@ def create_tuple_keys(key: DynamoDBKeySimplified) -> DynamoDBKeyAny:
         return cast(DynamoDBKeySimple, (key,))
 
 def _log_keys_from_params(key_params: Dict[str, DynamoDBKeyPrimitive]) -> str:
-        log_keys: Union[List[str], str] = list(key_params.keys())
-        if len(log_keys) == 1:
-            log_keys = log_keys[0]
-        return str(log_keys)
+    log_keys = list(key_params.values())
+    res = log_keys[0] if len(log_keys) == 1 else log_keys
+    return str(res)
 
 
 class DynamoDBValuesView(ValuesView):
@@ -262,14 +261,14 @@ class DynamoDBMapping(MutableMapping):
             boto3.Session()
         )
         dynamodb = session.resource("dynamodb")
-        self._table = dynamodb.Table(table_name)
-        self._key_names = get_key_names(self._table)
+        self.table = dynamodb.Table(table_name)
+        self.key_names = get_key_names(self.table)
 
     def _create_key_param(self, keys: DynamoDBKeySimplified) -> Dict[str, DynamoDBKeyPrimitive]:
         tuple_keys = create_tuple_keys(keys)
-        if len(tuple_keys) != len(self._key_names):
-            raise ValueError(f"You must provide a value for each of {self._key_names} keys.")
-        param = { name: value for name, value in zip(self._key_names, tuple_keys) }
+        if len(tuple_keys) != len(self.key_names):
+            raise ValueError(f"You must provide a value for each of {self.key_names} keys.")
+        param = { name: value for name, value in zip(self.key_names, tuple_keys) }
         return param
 
     def scan(self, **kwargs) -> Iterator[DynamoDBItemType]:
@@ -282,12 +281,12 @@ class DynamoDBMapping(MutableMapping):
         Returns:
             Iterator[DynamoDBItemType]: An iterator over all items in the table.
         """
-        logger.debug("Performing a scan operation on %s table", self._table.name)
-        response = self._table.scan(**kwargs)
+        logger.debug("Performing a scan operation on %s table", self.table.name)
+        response = self.table.scan(**kwargs)
         for item in response["Items"]:
             yield item
         while "LastEvaluatedKey" in response:
-            response = self._table.scan(ExclusiveStartKey=response["LastEvaluatedKey"])
+            response = self.table.scan(ExclusiveStartKey=response["LastEvaluatedKey"])
             for item in response["Items"]:
                 yield item
 
@@ -310,8 +309,8 @@ class DynamoDBMapping(MutableMapping):
             DynamoDBItemType: A single item from the table.
         """
         key_params = self._create_key_param(keys)
-        logger.debug("Performing a get_item operation on %s table", self._table.name)
-        response = self._table.get_item(Key=key_params, **kwargs)
+        logger.debug("Performing a get_item operation on %s table", self.table.name)
+        response = self.table.get_item(Key=key_params, **kwargs)
         if not "Item" in response:
             raise KeyError(_log_keys_from_params(key_params))
         data = response["Item"]
@@ -330,8 +329,8 @@ class DynamoDBMapping(MutableMapping):
         """
         key_params = self._create_key_param(keys)
         _item = dict(**item, **key_params)
-        logger.debug("Performing a put_item operation on %s table", self._table.name)
-        self._table.put_item(Item=_item, **kwargs)
+        logger.debug("Performing a put_item operation on %s table", self.table.name)
+        self.table.put_item(Item=_item, **kwargs)
 
     def put_item(self, keys: DynamoDBKeySimplified, item: DynamoDBItemType, **kwargs) -> None:
         """An alias for the `set_item` method."""
@@ -353,8 +352,8 @@ class DynamoDBMapping(MutableMapping):
         key_params = self._create_key_param(keys)
         if check_existing and not keys in self.keys():
             raise KeyError(_log_keys_from_params(key_params))
-        logger.debug("Performing a delete_item operation on %s table", self._table.name)
-        self._table.delete_item(Key=key_params, **kwargs)
+        logger.debug("Performing a delete_item operation on %s table", self.table.name)
+        self.table.delete_item(Key=key_params, **kwargs)
 
     def modify_item(self,
         keys: DynamoDBKeySimplified,
@@ -402,7 +401,7 @@ class DynamoDBMapping(MutableMapping):
         update_expression = " ".join(update_expression_parts)
         logger.debug(
             "Performing an update_item operation on %s table with update expression %s",
-            self._table.name,
+            self.table.name,
             update_expression,
         )
         update_item_kwargs = {
@@ -414,17 +413,17 @@ class DynamoDBMapping(MutableMapping):
             update_item_kwargs["ExpressionAttributeValues"] = attribute_values
         if attribute_names:
             update_item_kwargs["ExpressionAttributeNames"] = attribute_names
-        self._table.update_item(**update_item_kwargs)
+        self.table.update_item(**update_item_kwargs)
 
     def _key_values_from_item(self, item: DynamoDBItemType) -> DynamoDBKeyAny:
-        return cast(DynamoDBKeyAny, tuple(item[key] for key in self._key_names))
+        return cast(DynamoDBKeyAny, tuple(item[key] for key in self.key_names))
 
     def __iter__(self) -> Iterator:
         """Returns an iterator over the table.
 
         This method performs a lazy DynamoDB `scan` operation.
         """
-        for item in self.scan(ProjectionExpression=", ".join(self._key_names)):
+        for item in self.scan(ProjectionExpression=", ".join(self.key_names)):
             yield simplify_tuple_keys(self._key_values_from_item(item))
 
     def __len__(self) -> int:
@@ -433,7 +432,7 @@ class DynamoDBMapping(MutableMapping):
         If you need the precise number of items in the table, you can use
         `len(list(mapping.keys()))`. However this later can be a costly operation.
         """
-        return self._table.item_count
+        return self.table.item_count
 
     def __getitem__(self, __key: Any) -> Any:
         """Retrieves a single item from the table.

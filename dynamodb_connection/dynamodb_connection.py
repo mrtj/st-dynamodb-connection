@@ -72,7 +72,7 @@ class DynamoDBConnection(ExperimentalBaseConnection[DynamoDBMapping]):
 
     def _df_from_iterable(self, iterable: Iterable[DynamoDBItemType]) -> pd.DataFrame:
         df = pd.DataFrame(cast(Iterable[Dict[Any, Any]], iterable))
-        df.set_index(list(self.mapping._key_names), inplace=True)
+        df.set_index(list(self.mapping.key_names), inplace=True)
         return df
 
     def items(self,

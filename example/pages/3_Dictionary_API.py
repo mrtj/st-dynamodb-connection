@@ -1,10 +1,10 @@
+import streamlit as st
+
 def dict_demo():
-    import streamlit as st
     st.title("Dictionary API")
     st.write("This demo shows how to use the underlying dictionary-like API of DynamoDB Connection.")
     st.write("### Create DynamoDB connection")
     with st.echo():
-        import streamlit as st
         from dynamodb_connection import DynamoDBConnection
         conn = st.experimental_connection("dynamodb", type=DynamoDBConnection)
         # Access the dictionary API with the mapping property:
