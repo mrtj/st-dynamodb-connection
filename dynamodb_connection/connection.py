@@ -1,11 +1,13 @@
 """Streamlit connection to an Amazon DynamoDB table."""
 
 from typing import Any,  Dict, Iterator, Iterable, Union, Literal, Optional, cast
+from datetime import timedelta
 
 from streamlit.connections import ExperimentalBaseConnection
 
 import boto3
 import pandas as pd
+import streamlit as st
 
 from dynamodb_mapping import DynamoDBMapping, DynamoDBKeySimplified, DynamoDBItemType  # type: ignore
 from .utils import boto3_session_from_config
@@ -75,8 +77,13 @@ class DynamoDBConnection(ExperimentalBaseConnection[DynamoDBMapping]):
         df.set_index(list(self.mapping.key_names), inplace=True)
         return df
 
-    def items(self,
-        api_type: Optional[DynamoDBConnectionApiType]=None, **kwargs
+    def items(
+        self,
+        *,
+        api_type: Optional[DynamoDBConnectionApiType] = None,
+        ttl: Optional[Union[float, int, timedelta]] = None,
+        ignore_cache: bool = False,
+        **kwargs
     ) -> Union[Iterator[DynamoDBItemType], pd.DataFrame]:
         """Returns all items in the DynamoDB table.
 
@@ -89,6 +96,11 @@ class DynamoDBConnection(ExperimentalBaseConnection[DynamoDBMapping]):
             api_type (Optional[DynamoDBConnectionApiType]): Specifies the return type of the
                 method: "pandas", "raw" or None. The default None will use the connection's api
                 configuration.
+            ttl (float, int, timedelta or None): If using "pandas" API, the maximum number of
+                seconds to keep results in the cache, or None if cached results should not expire.
+                The default is None. If using "raw" API, this argument is ignored.
+            ignore_cache (bool): If set to True, no caching of the results will be done. Defaults
+                to False.
             **kwargs: Optional keyword arguments to be passed to the underlying boto3 DynamoDB
                 scan operation.
 
@@ -96,12 +108,28 @@ class DynamoDBConnection(ExperimentalBaseConnection[DynamoDBMapping]):
             iterator of python dictionaries.
         """
         api_type = api_type or self.api_type
-        iterator = self.mapping.scan(**kwargs)
-        return iterator if api_type == "raw" else self._df_from_iterable(iterator)
+        if api_type == "pandas":
+            if ignore_cache:
+                iterator = self.mapping.scan(**kwargs)
+                return self._df_from_iterable(iterator)
+            else:
+                @st.cache_data(
+                    show_spinner="Running `dynamodb.scan(...)`.",
+                    ttl=ttl,
+                )
+                def _items(**kwargs):
+                    iterator = self.mapping.scan(**kwargs)
+                    return self._df_from_iterable(iterator)
+                return _items(**kwargs)
+        else:
+            return self.mapping.scan(**kwargs)
 
     def get_item(self,
         keys: DynamoDBKeySimplified,
-        api_type: Optional[DynamoDBConnectionApiType]=None,
+        *,
+        api_type: Optional[DynamoDBConnectionApiType] = None,
+        ttl: Optional[Union[float, int, timedelta]] = None,
+        ignore_cache: bool = False,
         **kwargs
     ) -> Union[DynamoDBItemType, pd.Series]:
         """Retrieves a single item from the table.
@@ -115,6 +143,10 @@ class DynamoDBConnection(ExperimentalBaseConnection[DynamoDBMapping]):
             api_type (Optional[DynamoDBConnectionApiType]): Specifies the return type of the
                 method: "pandas", "raw" or None. The default None will use the connection's api
                 configuration.
+            ttl (float, int, timedelta or None): The maximum number of seconds to keep results in
+                the cache, or None if cached results should not expire. The default is None.
+            ignore_cache (bool): If set to True, no caching of the results will be done. Defaults
+                to False.
             **kwargs: keyword arguments to be passed to the underlying DynamoDB get_item operation.
 
         Raises:
@@ -126,8 +158,18 @@ class DynamoDBConnection(ExperimentalBaseConnection[DynamoDBMapping]):
                 the data of the requested item.
         """
         api_type = api_type or self.api_type
-        item = self.mapping.get_item(keys, **kwargs)
-        return item if api_type == "raw" else pd.Series(item, name="value")
+        if ignore_cache:
+            item = self.mapping.get_item(keys, **kwargs)
+            return item if api_type == "raw" else pd.Series(item, name="value")
+        else:
+            @st.cache_data(
+                show_spinner="Running `dynamodb.get_item(...)`.",
+                ttl=ttl,
+            )
+            def _get_item(keys, api_type, **kwargs):
+                item = self.mapping.get_item(keys, **kwargs)
+                return item if api_type == "raw" else pd.Series(item, name="value")
+            return _get_item(keys, api_type, **kwargs)
 
     def set_item(self,
         keys: DynamoDBKeySimplified, item: Union[DynamoDBItemType, pd.Series], **kwargs

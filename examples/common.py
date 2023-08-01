@@ -57,7 +57,7 @@ def api_demo(api_type: DynamoDBConnectionApiType, intro: str):
             "text": "This item was put from streamlit!",
             "metadata": {"source": "mrtj"},
         })
-        show_result(conn.items())
+        show_result(conn.items(ignore_cache=True))
 
     st.write("### Modify an existing item")
     with st.echo():
@@ -69,9 +69,9 @@ def api_demo(api_type: DynamoDBConnectionApiType, intro: str):
                 "new_field": "This is a newly added field"
             }
         )
-        show_result(conn.items())
+        show_result(conn.items(ignore_cache=True))
 
     st.write("### Delete an item from the table")
     with st.echo():
         conn.del_item("article_st")
-        show_result(conn.items())
+        show_result(conn.items(ignore_cache=True))
