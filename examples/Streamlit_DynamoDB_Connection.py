@@ -1,9 +1,4 @@
-
-
+from pathlib import Path
 import streamlit as st
 
-
-"""# Streamlit DynamoDB Connection
-
-A simple demo for Streamlit DynamoDB Connection.
-"""
+st.markdown((Path(__file__).parent / "intro.md").read_text())
