@@ -8,6 +8,7 @@ INSTALL_REQUIRES = [
     "streamlit>=1.22.0",
     "boto3>=1.28.9",
     "pandas>=2.0.3",
+    "dynamodb-mapping>=0.1.0",
 ]
 
 setuptools.setup(
@@ -33,6 +34,4 @@ setuptools.setup(
     python_requires=">=3.8",
     # Requirements
     install_requires=INSTALL_REQUIRES,
-    packages=["dynamodb_connection"],
-    package_data={"dynamodb_connection": ["py.typed"]},
 )
