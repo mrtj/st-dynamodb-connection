@@ -66,7 +66,7 @@ class DynamoDBTableEditor:
         self.widget_key = self.key_prefix + self._DATA_EDITOR_WIDGET_KEY
         self.processed_edits_key = self.key_prefix + self._DATA_EDITOR_PROCESSED_KEY
         if not self.data_key in st.session_state:
-            st.session_state[self.data_key] = self.connection.items()
+            st.session_state[self.data_key] = self.connection.items(ignore_cache=True)
         self.df = st.session_state[self.data_key]
 
     def edit(self) -> pd.DataFrame:
