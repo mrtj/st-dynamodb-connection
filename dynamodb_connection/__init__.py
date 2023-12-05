@@ -3,7 +3,7 @@
 from .connection import DynamoDBConnection, DynamoDBConnectionApiType, DynamoDBItemType
 from .table_editor import DynamoDBTableEditor
 
-__version__ = "0.1.4"
+__version__ = "0.1.5"
 
 __all__ = [
     "DynamoDBConnection",

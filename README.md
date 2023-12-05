@@ -110,3 +110,5 @@ conn = st.connection(
 table_editor = DynamoDBTableEditor(conn)
 table_editor.edit()
 ```
+
+![Table editor](https://github.com/mrtj/st-dynamodb-connection/blob/main/docs/table_editor.png?raw=true "Table editor")
