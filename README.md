@@ -24,8 +24,6 @@ You can install DynamoDB Connections with pip:
 pip install st-dynamodb-connection
 ```
 
-> *Note:* Install from pypi coming soon
-
 ### Creating a DynamoDB table and configuring AWS credentials
 
 1. As Streamlit DynamoDB Connections connects your Streamlit application to a DynamoDB table, first you need a DynamoDB table. If you do not have already one, you can follow the steps in the [Create a DynamoDB table and add some data](./docs/create_table.md) document to create one.

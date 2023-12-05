@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "st-dynamodb-connection"
-version = "0.1.1"
+version = "0.1.4"
 description = "Streamlit Connection for Amazon DynamoDB."
 authors = ["Janos Tolgyesi <janos.tolgyesi@gmail.com>"]
 license = "MIT"
@@ -8,6 +8,9 @@ readme = "README.md"
 packages = [
     { include = "dynamodb_connection" }
 ]
+homepage = "https://github.com/mrtj/st-dynamodb-connection"
+repository = "https://github.com/mrtj/st-dynamodb-connection"
+keywords = ["streamlit", "dynamodb", "streamlit-connection"]
 
 [tool.poetry.dependencies]
 boto3 = "~=1.28"

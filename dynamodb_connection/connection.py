@@ -162,14 +162,17 @@ class DynamoDBConnection(BaseConnection[DynamoDBMapping]):
             item = self.mapping.get_item(keys, **kwargs)
             return item if api_type == "raw" else pd.Series(item, name="value")
         else:
-            @st.cache_data(
-                show_spinner="Running `dynamodb.get_item(...)`.",
-                ttl=ttl,
-            )
-            def _get_item(keys, api_type, **kwargs):
-                item = self.mapping.get_item(keys, **kwargs)
-                return item if api_type == "raw" else pd.Series(item, name="value")
-            return _get_item(keys, api_type, **kwargs)
+            cache_message = "Running `dynamodb.get_item(...)`."
+            if api_type == "raw":
+                @st.cache_resource(show_spinner=cache_message, ttl=ttl)
+                def _get_item(keys, **kwargs):
+                    return self.mapping.get_item(keys, **kwargs)
+            else:
+                @st.cache_data(show_spinner=cache_message, ttl=ttl)
+                def _get_item(keys, **kwargs):
+                    item = self.mapping.get_item(keys, **kwargs)
+                    return pd.Series(item, name="value")
+            return _get_item(keys, **kwargs)
 
     def set_item(self,
         keys: DynamoDBKeySimplified, item: Union[DynamoDBItemType, pd.Series], **kwargs
