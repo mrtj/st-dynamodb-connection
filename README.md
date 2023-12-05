@@ -12,6 +12,8 @@ The primary method of data access in DynamoDB involves retrieving schema-less it
 
 You can try the demo application of DynamoDB Connection at [https://st-dynamodb-connection.streamlit.app](https://st-dynamodb-connection.streamlit.app).
 
+![Demo application](./docs/pandas_api.png "Demo application")
+
 ## Getting started
 
 ### Installation
@@ -51,7 +53,7 @@ import streamlit as st
 from dynamodb_connection import DynamoDBConnection
 
 # Create a connection:
-conn = st.experimental_connection(
+conn = st.connection(
     "my_dynamodb_connection", type=DynamoDBConnection, api_type="pandas"
 )
 
@@ -102,7 +104,7 @@ import streamlit as st
 from dynamodb_connection import DynamoDBConnection
 
 # Create a connection:
-conn = st.experimental_connection(
+conn = st.connection(
     "my_dynamodb_connection", type=DynamoDBConnection, api_type="pandas"
 )
 
