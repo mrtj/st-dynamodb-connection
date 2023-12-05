@@ -6,7 +6,7 @@ def dict_demo():
     st.write("### Create DynamoDB connection")
     with st.echo():
         from dynamodb_connection import DynamoDBConnection
-        conn = st.experimental_connection("dynamodb", type=DynamoDBConnection)
+        conn = st.connection("dynamodb", type=DynamoDBConnection)
         # Access the dictionary API with the mapping property:
         mapping = conn.mapping
 

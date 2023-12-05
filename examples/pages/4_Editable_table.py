@@ -13,7 +13,7 @@ def editable_demo():
     st.write("### DynamoDBTableEditor usage")
     with st.echo():
         from dynamodb_connection import DynamoDBConnection
-        conn = st.experimental_connection("dynamodb", type=DynamoDBConnection)
+        conn = st.connection("dynamodb", type=DynamoDBConnection)
         table_editor = DynamoDBTableEditor(conn)
         table_editor.edit()
 

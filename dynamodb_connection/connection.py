@@ -3,7 +3,7 @@
 from typing import Any,  Dict, Iterator, Iterable, Union, Literal, Optional, cast
 from datetime import timedelta
 
-from streamlit.connections import ExperimentalBaseConnection
+from streamlit.connections import BaseConnection
 
 import boto3
 import pandas as pd
@@ -14,7 +14,7 @@ from .utils import boto3_session_from_config
 
 DynamoDBConnectionApiType = Literal["raw", "pandas"]
 
-class DynamoDBConnection(ExperimentalBaseConnection[DynamoDBMapping]):
+class DynamoDBConnection(BaseConnection[DynamoDBMapping]):
     """Connects a streamlit app to an Amazon DynamoDB table.
 
     Example usage:
@@ -22,11 +22,11 @@ class DynamoDBConnection(ExperimentalBaseConnection[DynamoDBMapping]):
     ```python
     import streamlit as st
     from dynamodb_connection import DynamoDBConnection
-    conn = st.experimental_connection("dynamodb", type=DynamoDBConnection)
+    conn = st.connection("dynamodb", type=DynamoDBConnection)
     df = conn.items() # table contents returned as pandas dataframe
     ```
 
-    Args (can be passed to `st.experimental_connection`):
+    Args (can be passed to `st.connection`):
         connection_name (str): the name of the connection
         api_type (DynamoDBConnectionApiType): the API type to be used. If set to "pandas", pandas
             dataframe or series will be returned by the methods. If set to "raw", raw python objects

@@ -7,7 +7,7 @@ from dynamodb_connection import DynamoDBConnection, DynamoDBConnectionApiType
 
 CREATE_CONN_CODE = """\
 from dynamodb_connection import DynamoDBConnection
-conn = st.experimental_connection(
+conn = st.connection(
     "dynamodb", type=DynamoDBConnection, api_type="{api_type}"
 )"""
 
@@ -33,7 +33,7 @@ def api_demo(api_type: DynamoDBConnectionApiType, intro: str):
     st.write(intro)
     st.write(f"### Create DynamoDB connection with {api_type} api")
     st.code(CREATE_CONN_CODE.format(api_type=api_type))
-    conn = st.experimental_connection(
+    conn = st.connection(
         "dynamodb", type=DynamoDBConnection, api_type=api_type
     )
 
