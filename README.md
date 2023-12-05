@@ -21,7 +21,7 @@ You can try the demo application of DynamoDB Connection at [https://st-dynamodb-
 You can install DynamoDB Connections with pip:
 
 ```shell
-pip install git+https://github.com/mrtj/st-dynamodb-connection
+pip install st-dynamodb-connection
 ```
 
 > *Note:* Install from pypi coming soon
