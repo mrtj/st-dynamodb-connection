@@ -12,7 +12,7 @@ The primary method of data access in DynamoDB involves retrieving schema-less it
 
 You can try the demo application of DynamoDB Connection at [https://st-dynamodb-connection.streamlit.app](https://st-dynamodb-connection.streamlit.app).
 
-![Demo application](./docs/pandas_api.png "Demo application")
+![Demo application](https://github.com/mrtj/st-dynamodb-connection/blob/main/docs/pandas_api.png?raw=true "Demo application")
 
 ## Getting started
 
